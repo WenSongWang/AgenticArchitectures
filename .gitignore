@@ -1,0 +1,35 @@
+
+
+# 配置文件（避免提交敏感信息）
+.env
+*.env
+*.ini
+*.cfg
+*.config
+*.yaml
+*.yml
+*.toml
+secrets.*
+config.*
+settings.*
+.vscode/
+.idea/
+
+# README（按需求忽略）
+[Rr][Ee][Aa][Dd][Mm][Ee]*
+
+# 缓存与临时文件
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.cache/
+.ipynb_checkpoints/
+.DS_Store
+Thumbs.db
+*.log
+logs/
+
+# Jupyter Notebooks
+*.ipynb
