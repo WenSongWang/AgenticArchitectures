@@ -16,7 +16,7 @@ settings.*
 .idea/
 
 # README（按需求忽略）
-[Rr][Ee][Aa][Dd][Mm][Ee]*
+# [Rr][Ee][Aa][Dd][Mm][Ee]*
 
 # 缓存与临时文件
 __pycache__/
