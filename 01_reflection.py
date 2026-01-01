@@ -44,6 +44,7 @@ from rich.console import Console
 from rich.syntax import Syntax
  
 from openai import OpenAI
+from openai import RateLimitError, APIError
 import logging
 from rich.logging import RichHandler
 
@@ -99,28 +100,53 @@ class ModelScopeChat:
     ModelScope 的 OpenAI 兼容接口适配器：
     - 提供 invoke(prompt) 基本调用
     - 提供 with_structured_output(PydanticModel) 的结构化输出包装
+    - 支持API错误时自动切换到备选模型
  
-初学者理解要点：
-- 为什么需要“适配器”？因为我们的工作流依赖“结构化输出”，而不少服务默认只返回纯文本。
-- 适配器会尽量要求模型“只输出 JSON”，再解析为 Pydantic v2 模型；这样后续节点就能稳稳地拿到字段，而不是杂乱的文本。
+    初学者理解要点：
+    - 为什么需要“适配器”？因为我们的工作流依赖“结构化输出”，而不少服务默认只返回纯文本。
+    - 适配器会尽量要求模型“只输出 JSON”，再解析为 Pydantic v2 模型；这样后续节点就能稳稳地拿到字段，而不是杂乱的文本。
+    - 当主模型遇到API速率限制时，会自动切换到备选模型继续执行。
     """
     def __init__(self, base_url: str, api_key: str, model: str, temperature: float = 0.2, extra_body: Optional[dict] = None):
         self.client = OpenAI(base_url=base_url, api_key=api_key)
         self.model = model
+        # 从环境变量获取备选模型ID
+        self.fallback_model = os.environ.get("MODELSCOPE_MODEL_ID_R1")
         self.base_url = base_url
         self.temperature = temperature
         self.extra_body = extra_body or {}
+        self.switched = False
 
     def invoke(self, prompt: str):
-        resp = self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=self.temperature,
-            stream=False,
-            extra_body=self.extra_body,
-        )
-        # 非流式返回：choices[0].message.content
-        return resp.choices[0].message.content
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self.temperature,
+                stream=False,
+                extra_body=self.extra_body,
+            )
+            # 非流式返回：choices[0].message.content
+            return resp.choices[0].message.content
+        except (RateLimitError, APIError) as e:
+            if not self.switched and self.fallback_model:
+                if DEBUG:
+                    console.print(f"[bold yellow]⚠️ 模型 {self.model} 请求失败: {str(e)}，尝试切换到备选模型 {self.fallback_model}[/bold yellow]")
+                # 切换到备选模型
+                self.model = self.fallback_model
+                self.switched = True
+                # 重新尝试请求
+                resp = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=self.temperature,
+                    stream=False,
+                    extra_body=self.extra_body,
+                )
+                return resp.choices[0].message.content
+            else:
+                # 如果没有备选模型或已经切换过，重新抛出异常
+                raise
 
     def with_structured_output(self, pyd_model: type[BaseModel]):
         class _StructuredWrapper:
@@ -151,13 +177,32 @@ class ModelScopeChat:
                     {"role": "system", "content": system_msg},
                     {"role": "user", "content": prompt},
                 ]
-                resp = self.outer.client.chat.completions.create(
-                    model=self.outer.model,
-                    messages=messages,
-                    temperature=self.outer.temperature,
-                    stream=False,
-                    extra_body=self.outer.extra_body,
-                )
+                try:
+                    resp = self.outer.client.chat.completions.create(
+                        model=self.outer.model,
+                        messages=messages,
+                        temperature=self.outer.temperature,
+                        stream=False,
+                        extra_body=self.outer.extra_body,
+                    )
+                except (RateLimitError, APIError) as e:
+                    if not self.outer.switched and self.outer.fallback_model:
+                        if DEBUG:
+                            console.print(f"[bold yellow]⚠️ 模型 {self.outer.model} 请求失败: {str(e)}，尝试切换到备选模型 {self.outer.fallback_model}[/bold yellow]")
+                        # 切换到备选模型
+                        self.outer.model = self.outer.fallback_model
+                        self.outer.switched = True
+                        # 重新尝试请求
+                        resp = self.outer.client.chat.completions.create(
+                            model=self.outer.model,
+                            messages=messages,
+                            temperature=self.outer.temperature,
+                            stream=False,
+                            extra_body=self.outer.extra_body,
+                        )
+                    else:
+                        # 如果没有备选模型或已经切换过，重新抛出异常
+                        raise
                 content = resp.choices[0].message.content or ""
                 import json, re
                 from pydantic import ValidationError

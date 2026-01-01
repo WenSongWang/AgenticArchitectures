@@ -19,7 +19,7 @@ from langchain_core.messages import BaseMessage, ToolMessage, SystemMessage, Hum
 from pydantic import BaseModel, Field
 from langchain_core.tools import tool
 from langchain_tavily import TavilySearch
-from openai import OpenAI
+from openai import OpenAI, RateLimitError, APIError
 import logging
 from rich.logging import RichHandler
 
@@ -52,22 +52,40 @@ class ModelScopeChat:
     - 提供 invoke(prompt) 基本调用
     - 提供 with_structured_output(PydanticModel) 的结构化输出包装
     """
-    def __init__(self, base_url: str, api_key: str, model: str, temperature: float = 0.2, extra_body: Optional[dict] = None):
+    def __init__(self, base_url: str, api_key: str, model: str, fallback_model: Optional[str] = None, temperature: float = 0.2, extra_body: Optional[dict] = None):
         self.client = OpenAI(base_url=base_url, api_key=api_key)
         self.model = model
+        self.fallback_model = fallback_model
         self.base_url = base_url
         self.temperature = temperature
         self.extra_body = extra_body or {}
+        self.switched = False
 
     def invoke(self, prompt: str):
-        resp = self.client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=self.temperature,
-            stream=False,
-            extra_body=self.extra_body,
-        )
-        return resp.choices[0].message.content
+        try:
+            resp = self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=self.temperature,
+                stream=False,
+                extra_body=self.extra_body,
+            )
+            return resp.choices[0].message.content
+        except (RateLimitError, APIError) as e:
+            if not self.switched and self.fallback_model:
+                console.print(f"[bold yellow]⚠️ 主模型请求失败：{e}，尝试切换到备用模型[/bold yellow]")
+                self.model = self.fallback_model
+                self.switched = True
+                resp = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=self.temperature,
+                    stream=False,
+                    extra_body=self.extra_body,
+                )
+                return resp.choices[0].message.content
+            else:
+                raise
 
     def with_structured_output(self, pyd_model: type[BaseModel]):
         class _StructuredWrapper:
@@ -94,14 +112,30 @@ class ModelScopeChat:
                     {"role": "system", "content": system_msg},
                     {"role": "user", "content": prompt},
                 ]
-                resp = self.outer.client.chat.completions.create(
-                    model=self.outer.model,
-                    messages=messages,
-                    temperature=self.outer.temperature,
-                    stream=False,
-                    extra_body=self.outer.extra_body,
-                )
-                content = resp.choices[0].message.content or ""
+                try:
+                    resp = self.outer.client.chat.completions.create(
+                        model=self.outer.model,
+                        messages=messages,
+                        temperature=self.outer.temperature,
+                        stream=False,
+                        extra_body=self.outer.extra_body,
+                    )
+                    content = resp.choices[0].message.content or ""
+                except (RateLimitError, APIError) as e:
+                    if not self.outer.switched and self.outer.fallback_model:
+                        console.print(f"[bold yellow]⚠️ 主模型请求失败：{e}，尝试切换到备用模型[/bold yellow]")
+                        self.outer.model = self.outer.fallback_model
+                        self.outer.switched = True
+                        resp = self.outer.client.chat.completions.create(
+                            model=self.outer.model,
+                            messages=messages,
+                            temperature=self.outer.temperature,
+                            stream=False,
+                            extra_body=self.outer.extra_body,
+                        )
+                        content = resp.choices[0].message.content or ""
+                    else:
+                        raise
                 def _extract_json(s: str) -> str:
                     m = re.search(r'(\{[\s\S]*\}|\[[\s\S]*\])', s)
                     return m.group(1) if m else "{}"
@@ -138,17 +172,20 @@ def init_llm() -> ModelScopeChat:
       MODELSCOPE_BASE_URL（默认：https://api-inference.modelscope.cn/v1）
       MODELSCOPE_API_KEY
       MODELSCOPE_MODEL_ID（默认：deepseek-ai/DeepSeek-V3.2）
+      MODELSCOPE_MODEL_ID_R1（备用模型，可选）
+    - 当主模型请求失败时，会自动切换到备用模型（如果配置了的话）
     """
     base_url = os.environ.get("MODELSCOPE_BASE_URL", "https://api-inference.modelscope.cn/v1")
     api_key = os.environ.get("MODELSCOPE_API_KEY", "")
     model_id = os.environ.get("MODELSCOPE_MODEL_ID", "deepseek-ai/DeepSeek-V3.2")
+    fallback_model_id = os.environ.get("MODELSCOPE_MODEL_ID_R1")
     # 为避免“未信任的 chat template”错误，增加信任参数；并请求 JSON 输出格式
     extra = {
         "enable_thinking": True,
         "trust_request_chat_template": True,
         "response_format": {"type": "json_object"},
     }
-    return ModelScopeChat(base_url=base_url, api_key=api_key, model=model_id, temperature=0.2, extra_body=extra)
+    return ModelScopeChat(base_url=base_url, api_key=api_key, model=model_id, fallback_model=fallback_model_id, temperature=0.2, extra_body=extra)
 
 # Phase 1: The Baseline - A Reactive Agent (ReAct)
 # We'll rebuild the ReAct agent to compare against the planning agent
@@ -398,23 +435,24 @@ planning_graph_builder.add_edge("synthesizer", END)
 planning_agent_app = planning_graph_builder.compile()
 print("规划智能体编译成功。")
 
-# 测试规划智能体
-print("\n在相同查询上测试规划智能体：")
-print("'查找北京、上海和广州的人口。 ")
-print("然后计算它们的总人口。 ")
-print("最后，将总人口与中国人口进行比较，并说明哪个更大。'")
-
-planning_result = planning_agent_app.invoke({
-    "messages": [
-        ("human", "查找北京、上海和广州的人口。 "
-                 "然后计算它们的总人口。 "
-                 "最后，将总人口与中国人口进行比较，并说明哪个更大。")
-    ]
-})
-
-# 比较结果
-print("\n=== 比较结果 ===")
-print("反应式(ReAct)智能体结果：")
-print(react_result["messages"][-1].content)
-print("\n规划智能体结果：")
-print(planning_result["messages"][-1].content)
+if __name__ == "__main__":
+    # 测试规划智能体
+    print("\n在相同查询上测试规划智能体：")
+    print("'查找北京、上海和广州的人口。 ")
+    print("然后计算它们的总人口。 ")
+    print("最后，将总人口与中国人口进行比较，并说明哪个更大。'")
+    
+    planning_result = planning_agent_app.invoke({
+        "messages": [
+            ("human", "查找北京、上海和广州的人口。 "
+                     "然后计算它们的总人口。 "
+                     "最后，将总人口与中国人口进行比较，并说明哪个更大。")
+        ]
+    })
+    
+    # 比较结果
+    print("\n=== 比较结果 ===")
+    print("反应式(ReAct)智能体结果：")
+    print(react_result["messages"][-1].content)
+    print("\n规划智能体结果：")
+    print(planning_result["messages"][-1].content)

@@ -1,13 +1,246 @@
+# Agentic Architectures 智能体架构示例集
+
+一个展示多种智能体架构的可运行示例集合，使用 LangGraph 和 ModelScope API 构建。
+
+## 📋 项目概述
+
+本项目提供了一系列智能体架构的完整实现，帮助您理解和学习不同的智能体设计模式。每个示例都包含完整的代码、注释和使用说明，方便您快速上手和扩展。
+
+## 🎯 学习目标
+
+通过本项目，您将能够：
+- 理解不同智能体架构的工作原理
+- 掌握 LangGraph 构建有状态工作流的方法
+- 学会使用 Pydantic v2 进行结构化输出
+- 了解如何与 ModelScope API 集成
+- 掌握智能体错误处理和模型自动切换技术
+
+## 📁 项目结构
+
+```
+.
+├── 01_reflection.py       # 反思（Reflection）架构示例
+├── 02_tool_use.py         # 工具使用（Tool Use）架构示例
+├── 03_react.py            # ReAct（Reasoning + Action）架构示例
+├── 04_planning.py         # 规划（Planning）架构示例
+├── 05_multi_agent.py      # 多智能体（Multi-Agent）架构示例
+├── agentic_architecture_visualizer.py  # 架构可视化工具
+├── .env.example           # 环境变量示例文件
+└── README.md              # 项目说明文档
+```
+
+## 🚀 快速开始
+
+### 1. 安装依赖
+
+```bash
+pip install -r requirements.txt
+```
+
+### 2. 配置环境变量
+
+在项目根目录创建 `.env` 文件，并添加以下配置：
+
+```
+# ModelScope API 配置
+MODELSCOPE_BASE_URL=https://api-inference.modelscope.cn/v1
+MODELSCOPE_API_KEY=your_api_key_here
+MODELSCOPE_MODEL_ID=deepseek-ai/DeepSeek-V3.2
+MODELSCOPE_MODEL_ID_R1=deepseek-ai/DeepSeek-R1-0528  # 备用模型（可选）
+
+# LangSmith 配置（可选，用于追踪）
+LANGCHAIN_API_KEY=your_langchain_api_key_here
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_PROJECT=Agentic Architecture
+```
+
+### 3. 运行示例
+
+每个架构都可以独立运行：
+
+```bash
+# 运行反思架构示例
+python 01_reflection.py
+
+# 运行工具使用架构示例
+python 02_tool_use.py
+
+# 运行 ReAct 架构示例
+python 03_react.py
+
+# 运行规划架构示例
+python 04_planning.py
+
+# 运行多智能体架构示例
+python 05_multi_agent.py
+
+# 运行架构可视化工具
+streamlit run agentic_architecture_visualizer.py
+```
+
+## 📚 架构详解
+
+### 1. 反思（Reflection）架构
+
+**文件**: `01_reflection.py`
+
+**核心思想**: 生成 → 评审 → 改写
+
+- 先生成初步结果
+- 然后对结果进行评审，找出问题和改进点
+- 最后根据评审意见进行改写，得到更可靠的结果
+
+**使用示例**:
+```bash
+python 01_reflection.py --request "Write a Python function to find the nth Fibonacci number."
+```
+
+### 2. 工具使用（Tool Use）架构
+
+**文件**: `02_tool_use.py`
+
+**核心思想**: 规划 → 执行 → 汇总
+
+- 根据用户请求规划工具使用步骤
+- 执行工具调用，获取外部信息
+- 汇总结果，生成最终回答
+
+**使用示例**:
+```bash
+python 02_tool_use.py --request "请计算表达式 2+3*4，并列出当前目录文件。"
+```
+
+### 3. ReAct（Reasoning + Action）架构
+
+**文件**: `03_react.py`
+
+**核心思想**: 思考 → 行动 → 观察 → 再思考
+
+- 通过循环：思考下一步行动 → 执行行动 → 观察结果 → 调整思考
+- 适合需要多轮交互和推理的任务
+
+**使用示例**:
+```bash
+python 03_react.py
+```
+
+### 4. 规划（Planning）架构
+
+**文件**: `04_planning.py`
+
+**核心思想**: 任务分解 → 子任务执行 → 结果合成
+
+- 首先将复杂任务分解为多个子任务
+- 然后依次执行每个子任务
+- 最后将子任务结果合成为最终答案
+
+**使用示例**:
+```bash
+python 04_planning.py
+```
+
+### 5. 多智能体（Multi-Agent）架构
+
+**文件**: `05_multi_agent.py`
+
+**核心思想**: 智能体协作 → 任务分配 → 结果整合
+
+- 多个智能体协同工作
+- 根据各自专长分配任务
+- 整合所有智能体的结果
+
+**使用示例**:
+```bash
+python 05_multi_agent.py
+```
+
+## 🎨 架构可视化
+
+**文件**: `agentic_architecture_visualizer.py`
+
+提供了一个可视化界面，展示所有架构的工作流程和组件关系。
+
+**使用示例**:
+```bash
+python agentic_architecture_visualizer.py
+```
+
+## 🔧 核心功能
+
+### 模型自动切换
+
+当主模型（`MODELSCOPE_MODEL_ID`）因API请求失败（如每天使用次数限制）而无法使用时，系统会自动切换到备用模型（`MODELSCOPE_MODEL_ID_R1`），确保工作流的连续性。
+
+### 结构化输出
+
+使用 Pydantic v2 约束 LLM 输出为结构化数据，提高输出的可靠性和可用性。
+
+### 有状态工作流
+
+使用 LangGraph 构建有状态的工作流，支持复杂的多步骤智能体逻辑。
+
+### 友好的日志输出
+
+提供详细的日志和可视化输出，方便理解智能体的工作过程和调试。
+
+## 📝 命令行参数
+
+每个示例都支持一些命令行参数，例如：
+
+- `--request`：指定用户请求
+- `--debug`：开启调试模式
+- `--save-refined`：保存改写后的代码（仅反思架构）
+
+使用 `--help` 查看详细参数：
+
+```bash
+python 01_reflection.py --help
+```
+
+## 🛠️ 技术栈
+
+- Python 3.8+
+- LangGraph：构建有状态工作流
+- Pydantic v2：结构化输出
+- ModelScope API：大语言模型接口
+- Rich：终端美化输出
+
+## 📄 许可证
+
+MIT License
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 Pull Request！
+
+## 📧 联系方式
+
+如有问题或建议，请通过 GitHub Issues 与我们联系。
+
+---
+
+**开始您的智能体架构之旅吧！** 🚀
 # AgenticArchitectures
 
-面向学习与实践的“智能体架构”示例集合。当前包含四套核心示例：
+面向学习与实践的“智能体架构”示例集合。当前包含五套核心示例：
 
 - 反思（Reflection）架构：`01_reflection.py`
 - 工具使用（Tool Use）架构：`02_tool_use.py`
 - ReAct（Reasoning + Acting）架构：`03_react.py`
 - 规划（Planning）架构：`04_planning.py`
+- 多智能体（Multi-Agent）系统：`05_multi_agent.py`
 
-目标：帮助你理解如何用 LangGraph 1.0 构建有状态工作流、用 Pydantic v2 约束 LLM 结构化输出，并通过命令行可运行的脚本体验端到端流程。
+目标：帮助你理解如何用 LangGraph 1.0 构建有状态工作流、用 Pydantic v2 约束 LLM 结构化输出，并通过命令行可运行的脚本或可视化界面体验端到端流程。
+
+## 可视化功能
+
+项目提供了基于 Streamlit 的交互式可视化界面，当前支持多智能体系统的可视化分析：
+
+- 文件：`05_multi_agent_visualization.py`
+- 功能：直观的公司选择、实时分析进度显示、结构化结果展示、单/多智能体系统对比
+- 运行：`streamlit run 05_multi_agent_visualization.py`
+
+> 未来计划扩展到其他智能体架构的可视化支持。
 
 ## 环境准备
 - 建议 Python 3.10+

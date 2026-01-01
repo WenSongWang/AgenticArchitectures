@@ -6,3 +6,4 @@ rich==14.2.0
 python-dotenv==1.2.1
 langchain-community==0.4.1
 langchain-tavily==0.2.14
+streamlit==1.29.0

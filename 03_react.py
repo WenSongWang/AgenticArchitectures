@@ -37,7 +37,7 @@ from pydantic import BaseModel, Field
 from langgraph.graph import StateGraph, END
 from rich.console import Console
 from rich.syntax import Syntax
-from openai import OpenAI
+from openai import OpenAI, RateLimitError, APIError
 import logging
 from rich.logging import RichHandler
 
@@ -63,42 +63,82 @@ class ModelScopeChat:
 - 我们通过系统消息明确字段与类型，让模型“只输出 JSON 对象”，尽量避免自由文本
 - 返回后使用 Pydantic v2 验证与字段别名兜底，提高健壮性
     """
-    def __init__(self, base_url: str, api_key: str, model: str, temperature: float = 0.2, extra_body: Optional[dict] = None):
+    def __init__(self, base_url: str, api_key: str, model: str, fallback_model: Optional[str] = None, temperature: float = 0.2, extra_body: Optional[dict] = None):
         self.client = OpenAI(base_url=base_url, api_key=api_key)
         self.model = model
+        self.fallback_model = fallback_model
         self.base_url = base_url
         self.temperature = temperature
         self.extra_body = extra_body or {}
+        self.switched = False
     def invoke(self, prompt: str, stream_tokens: bool = False) -> str:
         # 非结构化调用：可选择令牌流（实时打印），适合调试思考过程
-        if stream_tokens:
-            resp_iter = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.temperature,
-                stream=True,
-                extra_body=self.extra_body,
-            )
-            parts = []
-            import sys as _sys
-            for ch in resp_iter:
-                delta = getattr(ch.choices[0], "delta", None)
-                token = getattr(delta, "content", "") if delta else ""
-                if token:
-                    parts.append(token)
-                    _sys.stdout.write(token)
-                    _sys.stdout.flush()
-            return "".join(parts)
-        else:
-            # 非流式：一次性返回文本
-            resp = self.client.chat.completions.create(
-                model=self.model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=self.temperature,
-                stream=False,
-                extra_body=self.extra_body,
-            )
-            return resp.choices[0].message.content or ""
+        try:
+            if stream_tokens:
+                resp_iter = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=self.temperature,
+                    stream=True,
+                    extra_body=self.extra_body,
+                )
+                parts = []
+                import sys as _sys
+                for ch in resp_iter:
+                    delta = getattr(ch.choices[0], "delta", None)
+                    token = getattr(delta, "content", "") if delta else ""
+                    if token:
+                        parts.append(token)
+                        _sys.stdout.write(token)
+                        _sys.stdout.flush()
+                return "".join(parts)
+            else:
+                # 非流式：一次性返回文本
+                resp = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=self.temperature,
+                    stream=False,
+                    extra_body=self.extra_body,
+                )
+                return resp.choices[0].message.content or ""
+        except (RateLimitError, APIError) as e:
+            if not self.switched and self.fallback_model:
+                if DEBUG:
+                    console.print(f"[bold yellow]⚠️ 主模型请求失败：{e}，尝试切换到备用模型[/bold yellow]")
+                self.model = self.fallback_model
+                self.switched = True
+                # 重试请求
+                if stream_tokens:
+                    resp_iter = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=self.temperature,
+                        stream=True,
+                        extra_body=self.extra_body,
+                    )
+                    parts = []
+                    import sys as _sys
+                    for ch in resp_iter:
+                        delta = getattr(ch.choices[0], "delta", None)
+                        token = getattr(delta, "content", "") if delta else ""
+                        if token:
+                            parts.append(token)
+                            _sys.stdout.write(token)
+                            _sys.stdout.flush()
+                    return "".join(parts)
+                else:
+                    # 非流式：一次性返回文本
+                    resp = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=self.temperature,
+                        stream=False,
+                        extra_body=self.extra_body,
+                    )
+                    return resp.choices[0].message.content or ""
+            else:
+                raise
     def with_structured_output(self, pyd_model: type[BaseModel]):
         class _StructuredWrapper:
             def __init__(self, outer: "ModelScopeChat"):
@@ -124,37 +164,78 @@ class ModelScopeChat:
                     {"role": "system", "content": system_msg},
                     {"role": "user", "content": prompt},
                 ]
-                if STREAM_TOKENS:
-                    # 结构化令牌流：边接收边打印，便于观察模型如何填充 JSON
-                    content_iter = self.outer.client.chat.completions.create(
-                        model=self.outer.model,
-                        messages=messages,
-                        temperature=self.outer.temperature,
-                        stream=True,
-                        extra_body=self.outer.extra_body,
-                    )
-                    import sys as _sys
-                    _sys.stdout.write("\n📡 正在接收结构化 JSON...\n")
-                    _sys.stdout.flush()
-                    parts = []
-                    for chunk in content_iter:
-                        delta = getattr(chunk.choices[0], "delta", None)
-                        token = getattr(delta, "content", "") if delta else ""
-                        if token:
-                            parts.append(token)
-                            _sys.stdout.write(token)
+                try:
+                    if STREAM_TOKENS:
+                        # 结构化令牌流：边接收边打印，便于观察模型如何填充 JSON
+                        content_iter = self.outer.client.chat.completions.create(
+                            model=self.outer.model,
+                            messages=messages,
+                            temperature=self.outer.temperature,
+                            stream=True,
+                            extra_body=self.outer.extra_body,
+                        )
+                        import sys as _sys
+                        _sys.stdout.write("\n📡 正在接收结构化 JSON...\n")
+                        _sys.stdout.flush()
+                        parts = []
+                        for chunk in content_iter:
+                            delta = getattr(chunk.choices[0], "delta", None)
+                            token = getattr(delta, "content", "") if delta else ""
+                            if token:
+                                parts.append(token)
+                                _sys.stdout.write(token)
+                                _sys.stdout.flush()
+                        content = "".join(parts)
+                    else:
+                        # 一次性返回 JSON 字符串
+                        resp = self.outer.client.chat.completions.create(
+                            model=self.outer.model,
+                            messages=messages,
+                            temperature=self.outer.temperature,
+                            stream=False,
+                            extra_body=self.outer.extra_body,
+                        )
+                        content = resp.choices[0].message.content or ""
+                except (RateLimitError, APIError) as e:
+                    if not self.outer.switched and self.outer.fallback_model:
+                        if DEBUG:
+                            console.print(f"[bold yellow]⚠️ 主模型请求失败：{e}，尝试切换到备用模型[/bold yellow]")
+                        self.outer.model = self.outer.fallback_model
+                        self.outer.switched = True
+                        # 重试请求
+                        if STREAM_TOKENS:
+                            # 结构化令牌流：边接收边打印，便于观察模型如何填充 JSON
+                            content_iter = self.outer.client.chat.completions.create(
+                                model=self.outer.model,
+                                messages=messages,
+                                temperature=self.outer.temperature,
+                                stream=True,
+                                extra_body=self.outer.extra_body,
+                            )
+                            import sys as _sys
+                            _sys.stdout.write("\n📡 正在接收结构化 JSON...\n")
                             _sys.stdout.flush()
-                    content = "".join(parts)
-                else:
-                    # 一次性返回 JSON 字符串
-                    resp = self.outer.client.chat.completions.create(
-                        model=self.outer.model,
-                        messages=messages,
-                        temperature=self.outer.temperature,
-                        stream=False,
-                        extra_body=self.outer.extra_body,
-                    )
-                    content = resp.choices[0].message.content or ""
+                            parts = []
+                            for chunk in content_iter:
+                                delta = getattr(chunk.choices[0], "delta", None)
+                                token = getattr(delta, "content", "") if delta else ""
+                                if token:
+                                    parts.append(token)
+                                    _sys.stdout.write(token)
+                                    _sys.stdout.flush()
+                            content = "".join(parts)
+                        else:
+                            # 一次性返回 JSON 字符串
+                            resp = self.outer.client.chat.completions.create(
+                                model=self.outer.model,
+                                messages=messages,
+                                temperature=self.outer.temperature,
+                                stream=False,
+                                extra_body=self.outer.extra_body,
+                            )
+                            content = resp.choices[0].message.content or ""
+                    else:
+                        raise
                 import json as _json, re
                 from pydantic import ValidationError
                 def _extract_json(s: str) -> str:
@@ -212,17 +293,20 @@ def init_llm() -> ModelScopeChat:
     - MODELSCOPE_BASE_URL（默认：https://api-inference.modelscope.cn/v1）
     - MODELSCOPE_API_KEY
     - MODELSCOPE_MODEL_ID（默认：deepseek-ai/DeepSeek-V3.2）
+    - MODELSCOPE_MODEL_ID_R1（备用模型，可选）
     - 强制 JSON 输出以配合结构化解析
+    - 当主模型请求失败时，会自动切换到备用模型（如果配置了的话）
     """
     base_url = os.environ.get("MODELSCOPE_BASE_URL", "https://api-inference.modelscope.cn/v1")
     api_key = os.environ.get("MODELSCOPE_API_KEY", "")
     model_id = os.environ.get("MODELSCOPE_MODEL_ID", "deepseek-ai/DeepSeek-V3.2")
+    fallback_model_id = os.environ.get("MODELSCOPE_MODEL_ID_R1")
     extra = {
         "enable_thinking": True,
         "trust_request_chat_template": True,
         "response_format": {"type": "json_object"},
     }
-    return ModelScopeChat(base_url=base_url, api_key=api_key, model=model_id, temperature=0.2, extra_body=extra)
+    return ModelScopeChat(base_url=base_url, api_key=api_key, model=model_id, fallback_model=fallback_model_id, temperature=0.2, extra_body=extra)
 
 # =========================
 # 工具集合（本地、安全）
