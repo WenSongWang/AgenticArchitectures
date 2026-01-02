@@ -95,7 +95,8 @@ architecture_choices = [
     "02 - 工具使用智能体 (Tool Use)",
     "03 - 反应型智能体 (ReAct)",
     "04 - 规划型智能体 (Planning)",
-    "05 - 多智能体系统 (Multi-Agent)"
+    "05 - 多智能体系统 (Multi-Agent)",
+    "06 - 规划→执行→验证智能体 (Planner→Executor→Verifier)"
 ]
 selected_architecture = st.sidebar.selectbox("", architecture_choices)
 
@@ -615,6 +616,76 @@ def visualize_multi_agent():
                     st.markdown("- **缺点**：结构复杂，需要更多的协调和资源")
                     st.markdown("- **适用场景**：复杂任务，需要多领域专业知识")
 
+def visualize_planner_executor_verifier():
+    """可视化规划→执行→验证智能体"""
+    st.markdown("### 06 - 规划→执行→验证智能体 (Planner→Executor→Verifier)")
+    
+    # 加载06_planner_executor_verifier模块
+    spec = importlib.util.spec_from_file_location("planner_executor_verifier", "06_planner_executor_verifier.py")
+    planner_executor_verifier = importlib.util.module_from_spec(spec)
+    sys.modules["planner_executor_verifier"] = planner_executor_verifier
+    spec.loader.exec_module(planner_executor_verifier)
+    
+    # 从模块中导入所需函数和类
+    init_llm = planner_executor_verifier.init_llm
+    build_app = planner_executor_verifier.build_app
+    run_workflow = planner_executor_verifier.run_workflow
+    print_execution_results = planner_executor_verifier.print_execution_results
+    
+    # 用户输入区域
+    default_request = "查询苹果公司上一财年的研发支出和员工数量，计算人均研发支出"
+    user_request = st.text_area("输入您的请求", value=default_request, height=100)
+    
+    # 执行按钮
+    if st.button("开始执行规划→执行→验证工作流"):
+        # 检查API密钥
+        if not os.environ.get("MODELSCOPE_API_KEY"):
+            st.error("请先设置API密钥")
+        else:
+            with st.spinner("正在初始化系统..."):
+                # 初始化LLM
+                llm = init_llm()
+                
+                # 构建工作流
+                app = build_app(llm)
+            
+            st.success("系统初始化完成！")
+            
+            # 创建日志显示区域
+            logs_container = st.empty()
+            log_content = ""
+            
+            # 重定向控制台输出到日志区域
+            import io
+            from contextlib import redirect_stdout
+            
+            f = io.StringIO()
+            with redirect_stdout(f):
+                # 执行工作流
+                final_state = run_workflow(app, user_request)
+                
+            # 获取控制台输出
+            log_content = f.getvalue()
+            
+            # 显示日志
+            st.markdown("### 执行日志")
+            st.text_area("", value=log_content, height=300, disabled=True)
+            
+            # 显示结果
+            st.markdown("### 执行结果")
+            
+            # 显示执行过程
+            if "intermediate_steps" in final_state:
+                st.markdown("#### 1. 执行步骤")
+                for i, step in enumerate(final_state["intermediate_steps"]):
+                    st.markdown(f"**步骤 {i+1}**：{step}")
+                    st.markdown("")
+            
+            # 显示最终答案
+            if "final_answer" in final_state and final_state["final_answer"]:
+                st.markdown("#### 2. 最终答案")
+                st.markdown(final_state["final_answer"])
+
 # 根据选择的架构显示不同的内容
 if "01 - 反思型智能体" in selected_architecture:
     visualize_reflection()
@@ -626,6 +697,8 @@ elif "04 - 规划型智能体" in selected_architecture:
     visualize_planning()
 elif "05 - 多智能体系统" in selected_architecture:
     visualize_multi_agent()
+elif "06 - 规划→执行→验证智能体" in selected_architecture:
+    visualize_planner_executor_verifier()
 
 # 页脚信息
 st.markdown("---")
@@ -637,6 +710,7 @@ st.markdown("- **02 - 工具使用智能体**：能够调用外部工具获取�
 st.markdown("- **03 - 反应型智能体**：基于环境反馈做出反应的智能体")
 st.markdown("- **04 - 规划型智能体**：能够制定和执行任务计划的智能体")
 st.markdown("- **05 - 多智能体系统**：由多个专业智能体组成的协作系统")
+st.markdown("- **06 - 规划→执行→验证智能体**：能够检测并纠正执行错误的智能体架构")
 
 st.markdown("\n### 技术栈")
 st.markdown("- **LangGraph**：构建智能体工作流")

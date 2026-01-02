@@ -19,14 +19,15 @@
 
 ```
 .
-├── 01_reflection.py       # 反思（Reflection）架构示例
-├── 02_tool_use.py         # 工具使用（Tool Use）架构示例
-├── 03_react.py            # ReAct（Reasoning + Action）架构示例
-├── 04_planning.py         # 规划（Planning）架构示例
-├── 05_multi_agent.py      # 多智能体（Multi-Agent）架构示例
+├── 01_reflection.py               # 反思（Reflection）架构示例
+├── 02_tool_use.py                 # 工具使用（Tool Use）架构示例
+├── 03_react.py                    # ReAct（Reasoning + Action）架构示例
+├── 04_planning.py                 # 规划（Planning）架构示例
+├── 05_multi_agent.py              # 多智能体（Multi-Agent）架构示例
+├── 06_planner_executor_verifier.py  # 规划→执行→验证（Planner→Executor→Verifier）架构示例
 ├── agentic_architecture_visualizer.py  # 架构可视化工具
-├── .env.example           # 环境变量示例文件
-└── README.md              # 项目说明文档
+├── .env.example                   # 环境变量示例文件
+└── README.md                      # 项目说明文档
 ```
 
 ## 🚀 快速开始
@@ -73,6 +74,9 @@ python 04_planning.py
 
 # 运行多智能体架构示例
 python 05_multi_agent.py
+
+# 运行规划→执行→验证架构示例
+python 06_planner_executor_verifier.py
 
 # 运行架构可视化工具
 streamlit run agentic_architecture_visualizer.py
@@ -154,22 +158,48 @@ python 04_planning.py
 python 05_multi_agent.py
 ```
 
+### 6. 规划→执行→验证（Planner→Executor→Verifier）架构
+
+**文件**: `06_planner_executor_verifier.py`
+
+**核心思想**: 规划 → 执行 → 验证 → 迭代
+
+- 规划器：将任务分解为可执行的步骤
+- 执行器：执行规划的步骤并获取结果
+- 验证器：检查执行结果是否符合预期
+- 迭代机制：如果验证失败，返回重新规划
+
+**使用示例**:
+```bash
+python 06_planner_executor_verifier.py
+```
+
+**关键特性**:
+- 错误检测与自修正能力
+- 基于条件的工作流路由
+- 结构化的任务规划和执行
+- 支持复杂任务的多轮迭代
+
 ## 🎨 架构可视化
 
 **文件**: `agentic_architecture_visualizer.py`
 
-提供了一个可视化界面，展示所有架构的工作流程和组件关系。
+提供了一个基于Streamlit的可视化界面，展示所有架构的工作流程和组件关系。
+
+**界面预览**:
+
+![架构可视化界面](AgenticArchitecture.jpg)
 
 **使用示例**:
 ```bash
-python agentic_architecture_visualizer.py
+streamlit run agentic_architecture_visualizer.py
 ```
 
 ## 🔧 核心功能
 
 ### 模型自动切换
 
-当主模型（`MODELSCOPE_MODEL_ID`）因API请求失败（如每天使用次数限制）而无法使用时，系统会自动切换到备用模型（`MODELSCOPE_MODEL_ID_R1`），确保工作流的连续性。
+当主模型（`MODELSCOPE_MODEL_ID`）因API请求失败（如每天使用次数限制、网络错误等）而无法使用时，系统会自动切换到备用模型（`MODELSCOPE_MODEL_ID_R1`），确保工作流的连续性。切换逻辑实现了防无限循环机制，确保系统稳定性。
 
 ### 结构化输出
 

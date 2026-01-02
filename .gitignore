@@ -33,3 +33,4 @@ logs/
 
 # Jupyter Notebooks
 *.ipynb
+*.ARCHITECTURE_RULES.md
