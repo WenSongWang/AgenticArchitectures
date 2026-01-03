@@ -17,6 +17,9 @@
 - 项目根目录创建 `.env` 并配置：
   - `LANGCHAIN_API_KEY`（用于 LangSmith 追踪，可选）
   - 如使用 ModelScope 接入：`MODELSCOPE_BASE_URL`、`MODELSCOPE_API_KEY`、`MODELSCOPE_MODEL_ID`
+  - 如使用高德MCP服务：
+    - `AMAP_KEY`：在高德开放平台申请的API密钥（https://console.amap.com/）
+    - `AMAP_MCP_URL`：高德MCP服务器地址（可选，默认：https://mcp.amap.com/mcp）
  
 如何运行：
 - 直接运行默认示例：`python 02_tool_use.py`
@@ -496,6 +499,62 @@ def tool_render_report(arguments: Dict[str, Any]) -> Dict[str, Any]:
         lines.append("- (n/a)")
     return {"markdown": "\n".join(lines)}
 
+def tool_amap_mcp(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """工具：调用高德MCP服务，获取地图相关数据
+    
+    高德MCP服务器支持的主要功能包括：
+    - 地理编码（地址转坐标）
+    - 逆地理编码（坐标转地址）
+    - 路线规划
+    - 兴趣点查询
+    - 地图数据查询等
+    
+    参数示例：
+    {"service": "geocode", "parameters": {"address": "北京市朝阳区"}}
+    {"service": "regeo", "parameters": {"location": "116.407413,39.904211"}}
+    
+    返回示例：
+    {"status": "success", "data": {"geocodes": [...]}, "url": "请求URL"}
+    """
+    import os, requests
+    
+    # 从环境变量获取配置
+    amap_mcp_url = os.environ.get("AMAP_MCP_URL", "https://mcp.amap.com/mcp")
+    amap_key = os.environ.get("AMAP_KEY", "")
+    
+    if not amap_key:
+        return {"error": "AMAP_KEY 未在环境变量中配置，请前往 https://console.amap.com/ 申请"}
+    
+    # 解析MCP服务参数
+    service = arguments.get("service")
+    parameters = arguments.get("parameters", {})
+    
+    if not service:
+        return {"error": "缺少必要参数 'service'，请指定要调用的高德MCP服务"}
+    
+    # 构建请求参数：将API key和服务参数合并
+    params = {"key": amap_key, "service": service, **parameters}
+    
+    try:
+        # 发送请求到高德MCP服务器（使用POST方法，高德MCP服务通常要求POST请求）
+        response = requests.post(amap_mcp_url, json=params, timeout=15)
+        response.raise_for_status()  # 检查HTTP错误
+        
+        # 解析响应
+        result = response.json()
+        
+        # 检查高德API返回的状态码
+        if result.get("status") != "1":
+            error_info = result.get("info", "未知错误")
+            error_code = result.get("infocode", "0")
+            return {"status": "error", "error": f"高德API错误: {error_info} (错误码: {error_code})", "url": response.url}
+        
+        return {"status": "success", "data": result, "url": response.url}
+    except requests.exceptions.RequestException as e:
+        return {"status": "error", "error": f"请求失败: {str(e)}", "url": amap_mcp_url}
+    except ValueError as e:
+        return {"status": "error", "error": f"响应解析失败: {str(e)}", "url": f"{amap_mcp_url}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"}
+
 def tool_sentiment_simple(arguments: Dict[str, Any]) -> Dict[str, Any]:
     """工具：基于简易词典的情感判断（英文示例）"""
     text = str(arguments.get("text", ""))
@@ -516,6 +575,7 @@ TOOLS_REGISTRY = {
     "keyword_extract": tool_keyword_extract,
     "current_time": tool_current_time,
     "render_report": tool_render_report,
+    "amap_mcp": tool_amap_mcp,  # 高德MCP地图服务工具（基于Model Context Protocol）
 }
 
 def make_planner_node(llm: "ModelScopeChat"):
@@ -532,6 +592,7 @@ def make_planner_node(llm: "ModelScopeChat"):
                     {"name": "keyword_extract", "args": {"tokens": "词列表", "top_k": "关键词数量（整数）"}},
                     {"name": "current_time", "args": {"format": "可选，时间格式，默认 '%Y-%m-%d %H:%M:%S'"}},
                     {"name": "render_report", "args": {"original": "原文", "normalized": "标准化文本", "keywords": "关键词列表", "time": "时间字符串"}},
+                    {"name": "amap_mcp", "args": {"service": "高德MCP服务名称（如：geocode, regeo, route, poi）", "parameters": "服务参数对象（根据不同服务类型）"}},  # 高德MCP地图服务（基于Model Context Protocol）
                 ]
             },
             ensure_ascii=False,

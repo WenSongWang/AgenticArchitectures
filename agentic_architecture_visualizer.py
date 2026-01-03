@@ -96,7 +96,8 @@ architecture_choices = [
     "03 - 反应型智能体 (ReAct)",
     "04 - 规划型智能体 (Planning)",
     "05 - 多智能体系统 (Multi-Agent)",
-    "06 - 规划→执行→验证智能体 (Planner→Executor→Verifier)"
+    "06 - 规划→执行→验证智能体 (Planner→Executor→Verifier)",
+    "07 - 黑板系统 (Blackboard System)"
 ]
 selected_architecture = st.sidebar.selectbox("", architecture_choices)
 

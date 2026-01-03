@@ -25,6 +25,7 @@
 ├── 04_planning.py                 # 规划（Planning）架构示例
 ├── 05_multi_agent.py              # 多智能体（Multi-Agent）架构示例
 ├── 06_planner_executor_verifier.py  # 规划→执行→验证（Planner→Executor→Verifier）架构示例
+├── 07_blackboard.py               # 黑板系统（Blackboard System）架构示例
 ├── agentic_architecture_visualizer.py  # 架构可视化工具
 ├── .env.example                   # 环境变量示例文件
 └── README.md                      # 项目说明文档
@@ -77,6 +78,9 @@ python 05_multi_agent.py
 
 # 运行规划→执行→验证架构示例
 python 06_planner_executor_verifier.py
+
+# 运行黑板系统架构示例
+python 07_blackboard.py
 
 # 运行架构可视化工具
 streamlit run agentic_architecture_visualizer.py
@@ -179,6 +183,39 @@ python 06_planner_executor_verifier.py
 - 基于条件的工作流路由
 - 结构化的任务规划和执行
 - 支持复杂任务的多轮迭代
+
+### 7. 黑板系统（Blackboard System）架构
+
+**文件**: `07_blackboard.py`
+
+**核心思想**: 共享内存 → 专家智能体 → 动态控制 → 机会主义激活
+
+- 共享内存（黑板）：中央数据存储，所有智能体可以读取和写入
+- 专家智能体：具有特定专业知识的独立智能体
+- 动态控制器：观察黑板状态并决定下一个执行的智能体
+- 机会主义激活：智能体根据当前问题状态被动态激活
+
+**使用示例**:
+```bash
+# 直接运行默认示例
+python 07_blackboard.py
+
+# 自定义查询
+python 07_blackboard.py --query "分析最近的阿里巴巴新闻并生成投资建议"
+
+# 跳过线性系统运行
+python 07_blackboard.py --no-sequential
+
+# 启用调试模式
+python 07_blackboard.py --debug
+```
+
+**关键特性**:
+- 高度灵活的多智能体协调模式
+- 动态控制器决定执行顺序
+- 支持与线性多智能体系统对比
+- 可选的真实网络搜索功能
+- 自动回退到模拟搜索工具
 
 ## 🎨 架构可视化
 
@@ -283,6 +320,9 @@ MIT License
   - `MODELSCOPE_BASE_URL`（可选，默认 `https://api-inference.modelscope.cn/v1`）
   - `MODELSCOPE_MODEL_ID`（可选，默认 `deepseek-ai/DeepSeek-V3.2`）
   - `LANGCHAIN_API_KEY`（可选，用于 LangSmith 追踪）
+  - 高德MCP服务配置（可选，使用地图功能时需要）：
+    - `AMAP_KEY`：在高德开放平台申请的API密钥（https://console.amap.com/）
+    - `AMAP_MCP_URL`：高德MCP服务器地址（可选，默认：https://mcp.amap.com/mcp）
 
 ## 反思（Reflection）架构
 文件：`01_reflection.py`
@@ -332,6 +372,7 @@ MIT License
   - 规划层输出 `ToolPlan`，每步可通过 `assign_to` 将结果保存到上下文变量中，后续步骤用 `"$变量名"` 或 `"$变量名.字段"` 引用
   - 执行器按序解析变量并执行工具，最终将 `context` 一并返回，便于教学展示
   - 汇总层使用 `FinalAnswer` 结构，将结果与来源汇总输出（并展示上下文）
+  - 支持高德MCP地图服务：可进行地理编码、逆地理编码、路线规划、兴趣点查询等地图相关操作
 
 ## 常见问题
 - 未设置 `MODELSCOPE_API_KEY`
@@ -340,6 +381,58 @@ MIT License
   - 适配器已内置常见别名映射与归一化处理；若仍异常，可开启 `--debug` 查看原始返回并调整请求描述
 - 实时日志
   - 使用 `--stream` 观察结构化 JSON 的令牌流；规划与汇总阶段会显示“规划中/汇总中”状态与实时输出
+
+## 高德MCP服务使用说明
+
+### 功能介绍
+
+工具使用架构中集成了高德MCP地图服务，可以实现以下功能：
+
+- 地理编码（地址转坐标）
+- 逆地理编码（坐标转地址）
+- 路线规划
+- 兴趣点查询
+- 地图数据查询等
+
+### 配置步骤
+
+1. 在高德开放平台申请API密钥：https://console.amap.com/
+2. 在 `.env` 文件中添加以下配置：
+
+```ini
+# 高德MCP地图服务配置
+AMAP_KEY="您在高德开放平台申请的API密钥"
+AMAP_MCP_URL="https://mcp.amap.com/mcp"  # 可选，默认值
+```
+
+### 使用示例
+
+#### 示例1：地理编码（地址转坐标）
+
+```bash
+python 02_tool_use.py --request "请帮我查询北京市朝阳区的地理坐标"
+```
+
+#### 示例2：逆地理编码（坐标转地址）
+
+```bash
+python 02_tool_use.py --request "请帮我查询坐标116.407413,39.904211对应的地址"
+```
+
+#### 示例3：兴趣点查询
+
+```bash
+python 02_tool_use.py --request "请帮我查询北京市朝阳区附近的餐馆"
+```
+
+### 参数说明
+
+高德MCP工具需要以下参数：
+
+- `service`：高德MCP服务名称（如：`geocode`、`regeo`、`route`、`poi`等）
+- `parameters`：服务对应的参数对象（根据不同服务类型提供不同参数）
+
+系统会自动根据用户请求构建合适的参数并调用相应的高德MCP服务。
 
 ## ReAct（Reasoning + Acting）架构
 文件：`03_react.py`
