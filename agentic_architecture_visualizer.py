@@ -97,7 +97,10 @@ architecture_choices = [
     "04 - 规划型智能体 (Planning)",
     "05 - 多智能体系统 (Multi-Agent)",
     "06 - 规划→执行→验证智能体 (Planner→Executor→Verifier)",
-    "07 - 黑板系统 (Blackboard System)"
+    "07 - 黑板系统 (Blackboard System)",
+    "08 - 情景记忆+语义记忆栈 (Episodic+Semantic Memory Stack)",
+    "09 - 思维树智能体 (Tree-of-Thoughts)",  # 添加思维树架构
+    "10 - 思维模型循环智能体 (Mental-Model-in-the-Loop)"  # 添加思维模型循环架构
 ]
 selected_architecture = st.sidebar.selectbox("", architecture_choices)
 
@@ -761,6 +764,194 @@ def visualize_blackboard_system():
                 st.markdown(content)
                 st.markdown("")
 
+# 添加思维树智能体的可视化函数
+def visualize_tree_of_thoughts():
+    """可视化思维树智能体"""
+    st.markdown("### 09 - 思维树智能体 (Tree-of-Thoughts)")
+    
+    # 加载09_tree_of_thoughts_cn模块
+    spec = importlib.util.spec_from_file_location("tree_of_thoughts", "09_tree_of_thoughts_cn.py")
+    tot = importlib.util.module_from_spec(spec)
+    sys.modules["tree_of_thoughts"] = tot
+    spec.loader.exec_module(tot)
+    
+    # 用户输入区域
+    default_request = "从数字1开始，使用+1、×3、-2操作，在8步内到达数字29"
+    user_request = st.text_area("输入您的请求", value=default_request, height=100)
+    
+    # 执行按钮
+    if st.button("开始执行思维树工作流"):
+        # 检查API密钥
+        if not os.environ.get("MODELSCOPE_API_KEY"):
+            st.error("请先设置API密钥")
+        else:
+            # 创建日志显示区域
+            logs_container = st.empty()
+            log_content = ""
+            
+            # 重定向控制台输出到日志区域
+            import io
+            from contextlib import redirect_stdout
+            
+            f = io.StringIO()
+            with redirect_stdout(f):
+                # 从模块中导入所需函数和变量
+                tot_agent = tot.tot_agent
+                CONFIG = tot.CONFIG
+                
+                # 执行工作流
+                result = tot_agent.invoke({
+                    "problem_description": user_request,
+                    "active_paths": [],
+                    "solution": None
+                })
+            
+            # 获取控制台输出
+            log_content = f.getvalue()
+            
+            # 显示日志
+            st.markdown("### 执行日志")
+            st.text_area("", value=log_content, height=300, disabled=True)
+            
+            # 显示结果
+            st.markdown("### 执行结果")
+            
+            # 显示解决方案路径
+            if result.get("solution"):
+                solution_path = result["solution"]
+                
+                # 创建可视化路径树
+                from rich.tree import Tree
+                from rich.console import Console
+                
+                path_tree = Tree("[bold blue]📈 解决方案路径[/bold blue]")
+                for i, state in enumerate(solution_path):
+                    node_label = f"[{i+1}] {state.move_description}"
+                    node = path_tree.add(node_label)
+                    node.add(f"当前数字: {state.current_number} | 已走步数: {state.steps_taken}")
+                
+                # 显示树状图
+                console = Console(width=80)
+                with redirect_stdout(f):
+                    console.print(path_tree)
+                tree_output = f.getvalue()
+                
+                st.text_area("路径可视化", value=tree_output, height=300, disabled=True)
+                
+                # 显示解决方案统计
+                st.markdown("#### 解决方案统计")
+                st.markdown(f"**总步数:** {solution_path[-1].steps_taken}")
+                st.markdown(f"**路径序列:** {' → '.join(map(str, solution_path[-1].path))}")
+                st.markdown(f"**解决效率:** {(1 - (solution_path[-1].steps_taken / CONFIG['MAX_STEPS'])) * 100:.1f}% ({CONFIG['MAX_STEPS']}步限制)")
+            else:
+                st.markdown("[red]未找到解决方案。[/red]")
+
+# 添加情景记忆+语义记忆栈智能体的可视化函数
+def visualize_episodic_with_semantic():
+    """可视化情景记忆+语义记忆栈智能体"""
+    st.markdown("### 08 - 情景记忆+语义记忆栈 (Episodic+Semantic Memory Stack)")
+    
+    # 加载08_episodic_with_semantic_cn模块
+    spec = importlib.util.spec_from_file_location("episodic_with_semantic", "08_episodic_with_semantic_cn.py")
+    ewsm = importlib.util.module_from_spec(spec)
+    sys.modules["episodic_with_semantic"] = ewsm
+    spec.loader.exec_module(ewsm)
+    
+    # 从模块中导入所需函数和类
+    init_llm = ewsm.init_llm
+    EpisodicMemoryStore = ewsm.EpisodicMemoryStore
+    SemanticMemoryGraph = ewsm.SemanticMemoryGraph
+    run_conversation = ewsm.run_conversation
+    
+    # 用户输入区域
+    default_request = "我对科技股很感兴趣，特别是NVIDIA和AMD。你能给我一些投资建议吗？"
+    user_request = st.text_area("输入您的请求", value=default_request, height=100)
+    
+    # 执行按钮
+    if st.button("开始执行对话"):
+        # 检查API密钥
+        if not os.environ.get("MODELSCOPE_API_KEY"):
+            st.error("请先设置API密钥")
+        else:
+            # 创建日志显示区域
+            logs_container = st.empty()
+            log_content = ""
+            
+            # 重定向控制台输出到日志区域
+            import io
+            from contextlib import redirect_stdout
+            
+            f = io.StringIO()
+            with redirect_stdout(f):
+                # 执行对话
+                final_response, _ = run_conversation(user_request)
+            
+            # 获取控制台输出
+            log_content = f.getvalue()
+            
+            # 显示日志
+            st.markdown("### 执行日志")
+            st.text_area("", value=log_content, height=300, disabled=True)
+            
+            # 显示结果
+            st.markdown("### 执行结果")
+            st.markdown("#### 最终响应")
+            st.markdown(final_response)
+
+# 添加思维模型循环智能体的可视化函数
+def visualize_mental_loop():
+    """可视化思维模型循环智能体"""
+    st.markdown("### 10 - 思维模型循环智能体 (Mental-Model-in-the-Loop)")
+    
+    # 加载10_mental_loop_cn模块
+    spec = importlib.util.spec_from_file_location("mental_loop", "10_mental_loop_cn.py")
+    ml = importlib.util.module_from_spec(spec)
+    sys.modules["mental_loop"] = ml
+    spec.loader.exec_module(ml)
+    
+    # 用户输入区域
+    st.markdown("#### 市场模拟演示")
+    st.markdown("这个演示展示了思维模型循环架构如何在股票交易场景中工作。")
+    st.markdown("智能体将在模拟市场中运行3天，处理好消息、坏消息和市场稳定的情况。")
+    
+    # 执行按钮
+    if st.button("开始执行市场模拟"):
+        # 检查API密钥
+        if not os.environ.get("MODELSCOPE_API_KEY"):
+            st.warning("未设置MODELSCOPE_API_KEY环境变量，将使用模拟响应进行演示。")
+        
+        # 创建日志显示区域
+        logs_container = st.empty()
+        log_content = ""
+        
+        # 重定向控制台输出到日志区域
+        import io
+        from contextlib import redirect_stdout
+        import sys
+        
+        # 重定向input函数，避免阻塞
+        original_input = sys.stdin.readline
+        def mock_input(prompt=""):
+            return ""
+        
+        sys.stdin.readline = mock_input
+        
+        try:
+            f = io.StringIO()
+            with redirect_stdout(f):
+                # 执行演示
+                ml.run_demo()
+        finally:
+            # 恢复原始input函数
+            sys.stdin.readline = original_input
+        
+        # 获取控制台输出
+        log_content = f.getvalue()
+        
+        # 显示日志
+        st.markdown("### 执行日志")
+        st.text_area("", value=log_content, height=400, disabled=True)
+
 # 根据选择的架构显示不同的内容
 if "01 - 反思型智能体" in selected_architecture:
     visualize_reflection()
@@ -776,6 +967,12 @@ elif "06 - 规划→执行→验证智能体" in selected_architecture:
     visualize_planner_executor_verifier()
 elif "07 - 黑板系统" in selected_architecture:
     visualize_blackboard_system()
+elif "08 - 情景记忆+语义记忆栈" in selected_architecture:
+    visualize_episodic_with_semantic()
+elif "09 - 思维树智能体" in selected_architecture:
+    visualize_tree_of_thoughts()
+elif "10 - 思维模型循环智能体" in selected_architecture:
+    visualize_mental_loop()
 
 # 页脚信息
 st.markdown("---")
@@ -789,9 +986,14 @@ st.markdown("- **04 - 规划型智能体**：能够制定和执行任务计划�
 st.markdown("- **05 - 多智能体系统**：由多个专业智能体组成的协作系统")
 st.markdown("- **06 - 规划→执行→验证智能体**：能够检测并纠正执行错误的智能体架构")
 st.markdown("- **07 - 黑板系统**：多智能体协作的黑板系统，包含专家智能体和动态控制器")
+st.markdown("- **08 - 情景记忆+语义记忆栈**：结合向量数据库和图数据库实现持久记忆的智能体架构")
+st.markdown("- **09 - 思维树智能体**：通过并行探索多路径、评估修剪无效分支解决复杂问题的智能体推理框架")
+st.markdown("- **10 - 思维模型循环智能体**：通过模拟和评估潜在行动来提高安全性和减少错误的智能体架构")
 
 st.markdown("\n### 技术栈")
 st.markdown("- **LangGraph**：构建智能体工作流")
 st.markdown("- **ModelScope**：提供语言模型支持")
 st.markdown("- **Streamlit**：构建交互式界面")
 st.markdown("- **Python**：主要开发语言")
+st.markdown("- **向量数据库**：管理情景记忆")
+st.markdown("- **图数据库**：管理语义记忆")

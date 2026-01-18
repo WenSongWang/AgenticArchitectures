@@ -26,6 +26,9 @@
 ├── 05_multi_agent.py              # 多智能体（Multi-Agent）架构示例
 ├── 06_planner_executor_verifier.py  # 规划→执行→验证（Planner→Executor→Verifier）架构示例
 ├── 07_blackboard.py               # 黑板系统（Blackboard System）架构示例
+├── 08_episodic_with_semantic_cn.py # 情景记忆 + 语义记忆栈（Episodic + Semantic Memory Stack）架构示例
+├── 09_tree_of_thoughts_cn.py      # 思维树（Tree-of-Thoughts）架构示例
+├── 10_mental_loop_cn.py           # 思维模型循环（Mental-Model-in-the-Loop）架构示例
 ├── agentic_architecture_visualizer.py  # 架构可视化工具
 ├── .env.example                   # 环境变量示例文件
 └── README.md                      # 项目说明文档
@@ -81,6 +84,15 @@ python 06_planner_executor_verifier.py
 
 # 运行黑板系统架构示例
 python 07_blackboard.py
+
+# 运行情景记忆 + 语义记忆栈架构示例
+python 08_episodic_with_semantic_cn.py
+
+# 运行思维树架构示例
+python 09_tree_of_thoughts_cn.py
+
+# 运行思维模型循环架构示例
+python 10_mental_loop_cn.py
 
 # 运行架构可视化工具
 streamlit run agentic_architecture_visualizer.py
@@ -216,6 +228,81 @@ python 07_blackboard.py --debug
 - 支持与线性多智能体系统对比
 - 可选的真实网络搜索功能
 - 自动回退到模拟搜索工具
+
+### 8. 情景记忆 + 语义记忆栈（Episodic + Semantic Memory Stack）架构
+
+**文件**: `08_episodic_with_semantic_cn.py`
+
+**核心思想**: 情景记忆 → 语义记忆 → 记忆检索 → 增强生成
+
+- 情景记忆：存储特定事件或过去交互的记忆，使用向量数据库管理
+- 语义记忆：存储从事件中提取的结构化事实、概念和关系，使用图数据库管理
+- 记忆检索：从两个记忆系统中查询相关信息
+- 增强生成：结合检索到的记忆生成个性化响应
+
+**使用示例**:
+```bash
+# 直接运行默认示例
+python 08_episodic_with_semantic_cn.py
+```
+
+**关键特性**:
+- 持久记忆系统，支持长期个性化交互
+- 结合向量数据库和图数据库的优势
+- 自动从对话中提取结构化知识
+- 支持相似性搜索和关系查询
+- 中文界面和详细注释
+
+### 9. 思维树（Tree-of-Thoughts）架构
+
+**文件**: `09_tree_of_thoughts_cn.py`
+
+**核心思想**: 并行探索 → 路径评估 → 分支修剪 → 解决方案合成
+
+- 并行探索：同时考虑多种可能的解决方案路径
+- 路径评估：定期评估各路径的可行性和进展
+- 分支修剪：剪枝无效或进展缓慢的路径
+- 解决方案合成：综合最优路径生成最终解决方案
+
+**使用示例**:
+```bash
+# 直接运行默认示例
+python 09_tree_of_thoughts_cn.py
+
+# 自定义问题
+python 09_tree_of_thoughts_cn.py --problem "从数字1开始，使用+1、×3、-2操作，在10步内到达数字31"
+```
+
+**关键特性**:
+- 支持多路径并行探索
+- 动态路径评估和剪枝
+- 可视化解决方案路径
+- 中文界面和详细注释
+
+### 10. 思维模型循环（Mental-Model-in-the-Loop）架构
+
+**文件**: `10_mental_loop_cn.py`
+
+**核心思想**: 观察 → 提议 → 模拟 → 评估 → 执行
+
+- 观察：观察真实环境的当前状态
+- 提议：基于当前状态生成高级策略
+- 模拟：在沙盒环境中运行策略模拟
+- 评估：分析模拟结果，评估风险和回报
+- 执行：在真实环境中执行经过优化的策略
+
+**使用示例**:
+```bash
+# 直接运行默认示例
+python 10_mental_loop_cn.py
+```
+
+**关键特性**:
+- 基于模拟的风险评估
+- LLM驱动的策略生成和评估
+- 市场模拟器环境
+- 新闻影响分析功能
+- 支持无API密钥的模拟运行
 
 ## 🎨 架构可视化
 
