@@ -99,8 +99,9 @@ architecture_choices = [
     "06 - 规划→执行→验证智能体 (Planner→Executor→Verifier)",
     "07 - 黑板系统 (Blackboard System)",
     "08 - 情景记忆+语义记忆栈 (Episodic+Semantic Memory Stack)",
-    "09 - 思维树智能体 (Tree-of-Thoughts)",  # 添加思维树架构
-    "10 - 思维模型循环智能体 (Mental-Model-in-the-Loop)"  # 添加思维模型循环架构
+    "09 - 思维树智能体 (Tree-of-Thoughts)",
+    "10 - 思维模型循环智能体 (Mental-Model-in-the-Loop)",
+    "11 - 元控制器智能体 (Meta-Controller)"
 ]
 selected_architecture = st.sidebar.selectbox("", architecture_choices)
 
@@ -952,6 +953,41 @@ def visualize_mental_loop():
         st.markdown("### 执行日志")
         st.text_area("", value=log_content, height=400, disabled=True)
 
+
+def visualize_meta_controller():
+    """可视化元控制器智能体"""
+    st.markdown("### 11 - 元控制器智能体 (Meta-Controller)")
+
+    # 加载 11_meta_controller_cn 模块
+    spec = importlib.util.spec_from_file_location("meta_controller", "11_meta_controller_cn.py")
+    mc = importlib.util.module_from_spec(spec)
+    sys.modules["meta_controller"] = mc
+    spec.loader.exec_module(mc)
+
+    run_agent = mc.run_agent
+
+    st.markdown("元控制器分析用户请求并路由到最合适的专家（通用/研究/编码）。")
+    default_query = "你好，今天怎么样？"
+    user_query = st.text_area("输入您的请求", value=default_query, height=80)
+
+    if st.button("运行元控制器"):
+        if not os.environ.get("MODELSCOPE_API_KEY"):
+            st.warning("未设置 MODELSCOPE_API_KEY，将使用模拟响应（若脚本支持）。")
+        import io
+        from contextlib import redirect_stdout
+
+        f = io.StringIO()
+        try:
+            with redirect_stdout(f):
+                run_agent(user_query)
+        except Exception as e:
+            st.error(f"执行出错: {e}")
+            st.code(str(e))
+        log_content = f.getvalue()
+        st.markdown("### 执行日志")
+        st.text_area("", value=log_content, height=400, disabled=True)
+
+
 # 根据选择的架构显示不同的内容
 if "01 - 反思型智能体" in selected_architecture:
     visualize_reflection()
@@ -973,6 +1009,8 @@ elif "09 - 思维树智能体" in selected_architecture:
     visualize_tree_of_thoughts()
 elif "10 - 思维模型循环智能体" in selected_architecture:
     visualize_mental_loop()
+elif "11 - 元控制器智能体" in selected_architecture:
+    visualize_meta_controller()
 
 # 页脚信息
 st.markdown("---")
@@ -989,6 +1027,7 @@ st.markdown("- **07 - 黑板系统**：多智能体协作的黑板系统，包�
 st.markdown("- **08 - 情景记忆+语义记忆栈**：结合向量数据库和图数据库实现持久记忆的智能体架构")
 st.markdown("- **09 - 思维树智能体**：通过并行探索多路径、评估修剪无效分支解决复杂问题的智能体推理框架")
 st.markdown("- **10 - 思维模型循环智能体**：通过模拟和评估潜在行动来提高安全性和减少错误的智能体架构")
+st.markdown("- **11 - 元控制器智能体**：分析请求并路由到最合适专家（通用/研究/编码）的监督式智能体")
 
 st.markdown("\n### 技术栈")
 st.markdown("- **LangGraph**：构建智能体工作流")
