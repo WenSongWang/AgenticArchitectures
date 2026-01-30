@@ -304,15 +304,15 @@ load_dotenv()
 os.environ["LANGCHAIN_TRACING_V2"] = "false"
 os.environ["LANGCHAIN_PROJECT"] = "智能体架构 - 元控制器（ModelScope）"
 
-# 检查所需的环境变量
-required_vars = ["MODELSCOPE_API_KEY", "LANGCHAIN_API_KEY", "TAVILY_API_KEY"]
-missing_vars = []
-for var in required_vars:
-    if var not in os.environ:
-        missing_vars.append(var)
-
-if missing_vars:
-    print(f"警告: 以下环境变量未设置: {', '.join(missing_vars)}")
+# 检查所需的环境变量（仅 MODELSCOPE_API_KEY 必需，其余可选）
+required_vars = ["MODELSCOPE_API_KEY"]
+optional_vars = ["LANGCHAIN_API_KEY", "TAVILY_API_KEY"]
+missing_required = [v for v in required_vars if v not in os.environ]
+missing_optional = [v for v in optional_vars if v not in os.environ]
+if missing_required:
+    print(f"警告: 请设置必需环境变量: {', '.join(missing_required)}（在 .env 中配置）")
+if missing_optional:
+    print(f"提示: 未设置可选变量: {', '.join(missing_optional)}（研究智能体需 TAVILY_API_KEY）")
 
 print("环境变量已加载，追踪已设置。")
 
