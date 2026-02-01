@@ -37,6 +37,7 @@
 ├── 16_cellular_automata_cn.py     # 细胞自动机/网格智能体（Cellular Automata）架构示例
 ├── 17_reflexive_metacognitive_cn.py # 反思式元认知（Reflexive Metacognitive）架构示例
 ├── agentic_architecture_visualizer.py  # 架构可视化工具
+├── agentic_recommend.py            # 架构推荐器：根据需求推荐并运行
 ├── .env.example                   # 环境变量示例文件
 └── README.md                      # 项目说明文档
 ```
@@ -132,7 +133,45 @@ python 17_reflexive_metacognitive_cn.py
 
 # 运行架构可视化工具
 streamlit run agentic_architecture_visualizer.py
+
+# 架构推荐器：根据需求推荐并运行
+python agentic_recommend.py recommend "我需要医疗分诊，能识别急症转人工"
+python agentic_recommend.py run 17 --request "布洛芬和赖诺普利能一起吃吗？"
+python agentic_recommend.py list
 ```
+
+## 🔍 架构推荐器（agentic_recommend.py）
+
+根据需求描述，**由 LLM 智能推荐**最合适的智能体架构，并给出可直接 copy 运行的正确命令。
+
+| 命令 | 说明 |
+|------|------|
+| `recommend "需求描述"` | LLM 理解需求后推荐架构 + 贴心理由 + 可直接 copy 的运行命令 |
+| `run <编号> [参数]` | 运行指定架构，参数透传给对应 py 脚本 |
+| `list` | 列出全部 17 种架构 |
+
+**核心能力**：
+- **智能推荐**：LLM 理解产品需求，从 17 种架构中选出最合适的一种
+- **正确命令**：系统根据各架构的实际 CLI 参数（如 03 用 `--question`、05 用 `--company`、16 用 `--order`）自动生成可运行命令，避免参数名错误
+- **落地说明**：推荐结果明确提示「可运行示例需接入自己的工具、数据、业务逻辑后落地到产品（二创）」
+
+**示例**：
+```bash
+python agentic_recommend.py recommend "我需要医疗分诊，能识别急症转人工"
+# → LLM 推荐 #17 反思式元认知，并给出 reason 与 run_command
+
+python agentic_recommend.py recommend "我想做个点咖啡智能体，根据习惯选门店、选品、下单送达"
+# → 推荐 #03 ReAct，run_command 自动使用 --question（非 --request）
+
+python agentic_recommend.py recommend "给我们的 AI 产品写营销邮件，要迭代打磨"
+# → 推荐 #15 自改进循环，并给出可直接运行的命令
+
+python agentic_recommend.py run 17 --request "布洛芬和赖诺普利能一起吃吗？"
+python agentic_recommend.py run 3 --question "根据习惯选门店、选品并下单送达"
+python agentic_recommend.py run 16 --order A,B --verbose
+```
+
+**前置条件**：推荐功能需配置 `.env` 中的 `MODELSCOPE_API_KEY`。
 
 ## 📚 架构详解
 
