@@ -2,10 +2,10 @@
 """
 Agentic Architecture 可视化系统
 
-使用Streamlit构建的交互式界面，用于展示和使用所有Agentic Architecture的示例。
+使用Streamlit构建的交互式界面，用于展示和使用全部 17 种 Agentic Architecture 示例。
 
 功能特点：
-- 支持所有Agentic Architecture示例的可视化展示
+- 支持 01–17 共 17 种智能体架构的可视化展示
 - 直观的架构选择界面
 - 实时显示分析过程和日志
 - 美观的结果展示
@@ -101,7 +101,13 @@ architecture_choices = [
     "08 - 情景记忆+语义记忆栈 (Episodic+Semantic Memory Stack)",
     "09 - 思维树智能体 (Tree-of-Thoughts)",
     "10 - 思维模型循环智能体 (Mental-Model-in-the-Loop)",
-    "11 - 元控制器智能体 (Meta-Controller)"
+    "11 - 元控制器智能体 (Meta-Controller)",
+    "12 - 图/世界模型记忆 (Graph)",
+    "13 - 并行探索+集成决策 (Ensemble)",
+    "14 - 可观测与试跑外壳 (Dry-Run Harness)",
+    "15 - 自改进循环 (Self-Refine / RLHF)",
+    "16 - 细胞自动机/网格智能体 (Cellular Automata)",
+    "17 - 反思式元认知 (Reflexive Metacognitive)",
 ]
 selected_architecture = st.sidebar.selectbox("", architecture_choices)
 
@@ -988,6 +994,246 @@ def visualize_meta_controller():
         st.text_area("", value=log_content, height=400, disabled=True)
 
 
+def visualize_graph():
+    """可视化图/世界模型记忆智能体（知识图谱构建与多跳问答）"""
+    st.markdown("### 12 - 图/世界模型记忆 (Graph)")
+
+    spec = importlib.util.spec_from_file_location("graph_cn", "12_graph_cn.py")
+    gc = importlib.util.module_from_spec(spec)
+    sys.modules["graph_cn"] = gc
+    spec.loader.exec_module(gc)
+
+    init_llm = gc.init_llm
+    get_graph = gc.get_graph
+    get_graph_maker_chain = gc.get_graph_maker_chain
+    ingest_documents = gc.ingest_documents
+    query_graph = gc.query_graph
+
+    st.markdown("从文本抽取知识图谱并写入图，再根据自然语言问题生成 Cypher 查询并合成答案。")
+    if st.button("1. 构建知识图谱（摄入默认 3 段文档）"):
+        if not os.environ.get("MODELSCOPE_API_KEY"):
+            st.warning("未设置 MODELSCOPE_API_KEY，将使用模拟响应。")
+        import io
+        from contextlib import redirect_stdout
+        f = io.StringIO()
+        try:
+            with redirect_stdout(f):
+                llm = init_llm()
+                graph = get_graph()
+                graph_maker_invoke = get_graph_maker_chain(llm)
+                ingest_documents(graph, graph_maker_invoke)
+            st.success("知识图谱构建完成")
+            st.text_area("摄入日志", value=f.getvalue(), height=200, disabled=True)
+            st.session_state["graph_llm"] = (graph, llm)
+        except Exception as e:
+            st.error(str(e))
+            st.code(str(e))
+
+    question = st.text_input("2. 输入图问答问题", value="谁在 AlphaCorp 工作？", key="graph_question")
+    if st.button("执行图问答"):
+        if "graph_llm" not in st.session_state:
+            st.warning("请先点击「1. 构建知识图谱」再执行问答。")
+        elif not os.environ.get("MODELSCOPE_API_KEY"):
+            st.warning("未设置 MODELSCOPE_API_KEY，将使用模拟响应。")
+        else:
+            graph, llm = st.session_state["graph_llm"]
+            import io
+            from contextlib import redirect_stdout
+            f = io.StringIO()
+            try:
+                with redirect_stdout(f):
+                    result = query_graph(graph, llm, question)
+                st.markdown("### 答案")
+                st.markdown(result["answer"])
+                st.text_area("执行日志", value=f.getvalue(), height=250, disabled=True)
+            except Exception as e:
+                st.error(str(e))
+                st.code(str(e))
+
+
+def visualize_ensemble():
+    """可视化并行探索+集成决策（投资委员会）"""
+    st.markdown("### 13 - 并行探索+集成决策 (Ensemble)")
+    spec = importlib.util.spec_from_file_location("ensemble_cn", "13_ensemble_cn.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["ensemble_cn"] = mod
+    spec.loader.exec_module(mod)
+    init_llm = mod.init_llm
+    build_app = mod.build_app
+    run_workflow = mod.run_workflow
+    st.markdown("三路分析师（看多/价值/量化）并行分析，CIO 综合输出投资建议。")
+    request = st.text_area("投资分析问题", value="基于近期新闻、财务表现与展望，英伟达（NVDA）在 2026 年下半年是否值得长期投资？", height=80)
+    if st.button("开始执行投资委员会工作流"):
+        if not os.environ.get("MODELSCOPE_API_KEY"):
+            st.warning("未设置 MODELSCOPE_API_KEY，将使用模拟响应。")
+        import io
+        from contextlib import redirect_stdout
+        f = io.StringIO()
+        try:
+            with redirect_stdout(f):
+                llm = init_llm()
+                app = build_app(llm)
+                result = run_workflow(app, request)
+            st.success("执行完成")
+            st.text_area("执行日志", value=f.getvalue(), height=300, disabled=True)
+            if result.get("analyses"):
+                for name, text in result["analyses"].items():
+                    st.markdown(f"**{name}**")
+                    st.markdown(text[:500] + "..." if len(text) > 500 else text)
+            rec = result.get("final_recommendation")
+            if rec:
+                st.markdown("**CIO 综合建议**")
+                st.markdown(f"- 最终建议：{rec.final_recommendation}，信心：{rec.confidence_score}/10")
+                st.markdown(f"- 综合摘要：{rec.synthesis_summary}")
+        except Exception as e:
+            st.error(str(e))
+            st.code(str(e))
+
+
+def visualize_dry_run():
+    """可视化可观测与试跑外壳（拟发帖→试跑→审核→执行/取消）"""
+    st.markdown("### 14 - 可观测与试跑外壳 (Dry-Run Harness)")
+    spec = importlib.util.spec_from_file_location("dry_run_cn", "14_dry_run_cn.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["dry_run_cn"] = mod
+    spec.loader.exec_module(mod)
+    init_llm = mod.init_llm
+    build_app = mod.build_app
+    run_workflow = mod.run_workflow
+    st.markdown("拟稿 → 试跑预览 → 人工审核（approve/reject）→ 执行或取消。下方选择「模拟审核」结果后执行。")
+    request = st.text_area("发帖请求", value="为我们的新 AI 模型「星云」写一条正面发布公告。", height=60)
+    dry_run_decision = st.radio("模拟审核决策", ["approve", "reject"], horizontal=True)
+    if st.button("开始执行试跑工作流"):
+        if not os.environ.get("MODELSCOPE_API_KEY"):
+            st.warning("未设置 MODELSCOPE_API_KEY，将使用模拟响应。")
+        import io
+        from contextlib import redirect_stdout
+        _orig_console_input = mod.console.input
+        mod.console.input = lambda prompt="": dry_run_decision
+        f = io.StringIO()
+        try:
+            with redirect_stdout(f):
+                llm = init_llm()
+                app = build_app(llm)
+                result = run_workflow(app, request)
+            st.success("执行完成")
+            st.text_area("执行日志", value=f.getvalue(), height=300, disabled=True)
+            st.markdown(f"**最终状态**：{result.get('final_status', '')}")
+        except Exception as e:
+            st.error(str(e))
+            st.code(str(e))
+        finally:
+            mod.console.input = _orig_console_input
+
+
+def visualize_self_refine():
+    """可视化自改进循环（生成→评审→修订）"""
+    st.markdown("### 15 - 自改进循环 (Self-Refine / RLHF)")
+    spec = importlib.util.spec_from_file_location("rlhf_cn", "15_RLHF_cn.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["rlhf_cn"] = mod
+    spec.loader.exec_module(mod)
+    init_llm = mod.init_llm
+    build_app = mod.build_app
+    run_workflow = mod.run_workflow
+    st.markdown("生成营销邮件初稿 → 评审（8 分通过）→ 未通过则修订再评审，最多 3 轮。")
+    request = st.text_area("邮件请求", value="为我们新的 AI 数据分析平台「InsightSphere」写一封营销邮件。", height=80)
+    if st.button("开始执行自改进工作流"):
+        if not os.environ.get("MODELSCOPE_API_KEY"):
+            st.warning("未设置 MODELSCOPE_API_KEY，将使用模拟响应。")
+        import io
+        from contextlib import redirect_stdout
+        f = io.StringIO()
+        try:
+            with redirect_stdout(f):
+                llm = init_llm()
+                app = build_app(llm)
+                result = run_workflow(app, request)
+            st.success("执行完成")
+            st.text_area("执行日志", value=f.getvalue(), height=300, disabled=True)
+            d = result.get("draft_email")
+            c = result.get("critique")
+            if d:
+                st.markdown("**最终邮件**")
+                st.markdown(f"主题：{d.subject}")
+                st.markdown(d.body)
+                if c:
+                    st.markdown(f"评审分数：{c.score}/10")
+        except Exception as e:
+            st.error(str(e))
+            st.code(str(e))
+
+
+def visualize_cellular_automata():
+    """可视化细胞自动机/网格拣货"""
+    st.markdown("### 16 - 细胞自动机/网格智能体 (Cellular Automata)")
+    spec = importlib.util.spec_from_file_location("cellular_cn", "16_cellular_automata_cn.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["cellular_cn"] = mod
+    spec.loader.exec_module(mod)
+    WarehouseGrid = mod.WarehouseGrid
+    DEFAULT_LAYOUT = mod.DEFAULT_LAYOUT
+    fulfill_order = mod.fulfill_order
+    st.markdown("从打包站扩散路径波，沿梯度从货架拣货到打包站。输入拣货清单（逗号分隔，如 A,B）。")
+    order_str = st.text_input("拣货清单", value="A,B")
+    verbose_mode = st.checkbox("智能体群组演示（打印每 tick 各格子更新过程）", value=False)
+    if st.button("开始执行拣货"):
+        import io
+        from contextlib import redirect_stdout
+        order = [x.strip() for x in order_str.split(",") if x.strip()] or ["A", "B"]
+        f = io.StringIO()
+        try:
+            with redirect_stdout(f):
+                grid = WarehouseGrid(DEFAULT_LAYOUT)
+                mod.console.print("--- 初始网格 ---")
+                grid.visualize()
+                mod.console.print(f"\n--- 拣货清单：{order} ---")
+                results = fulfill_order(grid, order, verbose=verbose_mode)
+            st.success("拣货完成")
+            st.text_area("执行日志", value=f.getvalue(), height=350, disabled=True)
+            if results:
+                for item, path in results:
+                    st.markdown(f"**{item}** 路径：{' → '.join(str(p) for p in path)}")
+        except Exception as e:
+            st.error(str(e))
+            st.code(str(e))
+
+
+def visualize_metacognitive():
+    """可视化反思式元认知（医疗分诊）"""
+    st.markdown("### 17 - 反思式元认知 (Reflexive Metacognitive)")
+    spec = importlib.util.spec_from_file_location("meta_cn", "17_reflexive_metacognitive_cn.py")
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules["meta_cn"] = mod
+    spec.loader.exec_module(mod)
+    init_llm = mod.init_llm
+    build_app = mod.build_app
+    run_agent = mod.run_agent
+    MEDICAL_SELF_MODEL = mod.MEDICAL_SELF_MODEL
+    st.markdown("先元认知分析，再路由：直接回答 / 用工具（药物相互作用）/ 升级人工。")
+    default_query = "布洛芬和赖诺普利能一起吃吗？"
+    query = st.text_area("用户问题", value=default_query, height=80, key="meta_query")
+    st.caption("预设示例：直接回答「感冒和流感的症状有什么区别？」；用工具「布洛芬和赖诺普利能一起吃吗？」；升级人工「我胸口疼呼吸困难怎么办？」")
+    if st.button("开始执行元认知工作流"):
+        if not os.environ.get("MODELSCOPE_API_KEY"):
+            st.warning("未设置 MODELSCOPE_API_KEY，将使用模拟响应。")
+        import io
+        from contextlib import redirect_stdout
+        f = io.StringIO()
+        try:
+            with redirect_stdout(f):
+                llm = init_llm()
+                app = build_app(llm)
+                result = run_agent(app, query, MEDICAL_SELF_MODEL)
+            st.success("执行完成")
+            st.text_area("执行日志", value=f.getvalue(), height=250, disabled=True)
+            st.markdown("**最终回复**")
+            st.markdown(result.get("final_response", ""))
+        except Exception as e:
+            st.error(str(e))
+            st.code(str(e))
+
+
 # 根据选择的架构显示不同的内容
 if "01 - 反思型智能体" in selected_architecture:
     visualize_reflection()
@@ -1011,6 +1257,18 @@ elif "10 - 思维模型循环智能体" in selected_architecture:
     visualize_mental_loop()
 elif "11 - 元控制器智能体" in selected_architecture:
     visualize_meta_controller()
+elif "12 - 图/世界模型记忆" in selected_architecture:
+    visualize_graph()
+elif "13 - 并行探索+集成决策" in selected_architecture:
+    visualize_ensemble()
+elif "14 - 可观测与试跑外壳" in selected_architecture:
+    visualize_dry_run()
+elif "15 - 自改进循环" in selected_architecture:
+    visualize_self_refine()
+elif "16 - 细胞自动机/网格智能体" in selected_architecture:
+    visualize_cellular_automata()
+elif "17 - 反思式元认知" in selected_architecture:
+    visualize_metacognitive()
 
 # 页脚信息
 st.markdown("---")
@@ -1028,6 +1286,12 @@ st.markdown("- **08 - 情景记忆+语义记忆栈**：结合向量数据库和�
 st.markdown("- **09 - 思维树智能体**：通过并行探索多路径、评估修剪无效分支解决复杂问题的智能体推理框架")
 st.markdown("- **10 - 思维模型循环智能体**：通过模拟和评估潜在行动来提高安全性和减少错误的智能体架构")
 st.markdown("- **11 - 元控制器智能体**：分析请求并路由到最合适专家（通用/研究/编码）的监督式智能体")
+st.markdown("- **12 - 图/世界模型记忆**：从文本构建知识图谱，支持自然语言多跳问答（Text-to-Cypher）")
+st.markdown("- **13 - 并行探索+集成决策**：多路分析师并行分析，CIO 综合投资建议（扇出/扇入）")
+st.markdown("- **14 - 可观测与试跑外壳**：拟稿→试跑预览→人工审核（approve/reject）→执行或取消")
+st.markdown("- **15 - 自改进循环**：生成→评审→修订循环（Self-Refine），质量达标或达最大轮数结束")
+st.markdown("- **16 - 细胞自动机/网格智能体**：网格路径波传播与沿梯度拣货，仓库物流演示")
+st.markdown("- **17 - 反思式元认知**：元认知分析后路由：直接回答/用工具/升级人工（医疗分诊）")
 
 st.markdown("\n### 技术栈")
 st.markdown("- **LangGraph**：构建智能体工作流")

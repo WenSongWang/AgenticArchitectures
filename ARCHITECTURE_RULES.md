@@ -98,7 +98,7 @@ if __name__ == "__main__":
 - `MODELSCOPE_API_KEY`：ModelScope API密钥（必需）
 - `MODELSCOPE_BASE_URL`：ModelScope API基础URL（默认：https://api-inference.modelscope.cn/v1）
 - `MODELSCOPE_MODEL_ID`：默认模型ID（默认：deepseek-ai/DeepSeek-V3.2）
-- `MODELSCOPE_MODEL_ID_R1`：备用模型ID（可选，用于自动切换）
+- `MODELSCOPE_MODEL_ID_R1`：备用模型ID（可选，默认 deepseek-ai/DeepSeek-R1-0528，主模型 429/失败时同 base_url 下自动切换）
 - `LANGCHAIN_API_KEY`：LangSmith追踪密钥（可选）
 - `LANGCHAIN_TRACING_V2`：启用LangSmith追踪（默认：true）
 - `LANGCHAIN_PROJECT`：LangSmith项目名称（默认：Agentic Architecture - [架构名称]）
