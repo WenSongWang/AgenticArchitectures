@@ -142,32 +142,48 @@ python agentic_recommend.py list
 
 ## 🔍 架构推荐器（agentic_recommend.py）
 
-根据需求描述，**由 LLM 智能推荐**最合适的智能体架构，并给出可直接 copy 运行的正确命令。
+根据需求描述，**由 LLM 智能推荐**最合适的智能体架构。各架构 py 工具有限，不能直接跑用户的具体需求，需**先跑该架构自带示例**，看懂架构后再二创落地。
 
 | 命令 | 说明 |
 |------|------|
-| `recommend "需求描述"` | LLM 理解需求后推荐架构 + 贴心理由 + 可直接 copy 的运行命令 |
+| `recommend "需求描述"` | LLM 理解需求后推荐架构 + 贴心理由 + 运行该架构自带示例的命令 |
 | `run <编号> [参数]` | 运行指定架构，参数透传给对应 py 脚本 |
 | `list` | 列出全部 17 种架构 |
 
 **核心能力**：
 - **智能推荐**：LLM 理解产品需求，从 17 种架构中选出最合适的一种
 - **正确命令**：系统根据各架构的实际 CLI 参数（如 03 用 `--question`、05 用 `--company`、16 用 `--order`）自动生成可运行命令，避免参数名错误
-- **落地说明**：推荐结果明确提示「可运行示例需接入自己的工具、数据、业务逻辑后落地到产品（二创）」
+- **落地说明**：推荐结果明确提示「各架构工具有限，先跑自带示例，看懂架构后再二创接入自己的工具、数据、业务逻辑落地产品」
 
 **示例**：
 ```bash
 python agentic_recommend.py recommend "我需要医疗分诊，能识别急症转人工"
-# → LLM 推荐 #17 反思式元认知，并给出 reason 与 run_command
-
 python agentic_recommend.py recommend "我想做个点咖啡智能体，根据习惯选门店、选品、下单送达"
-# → 推荐 #03 ReAct，run_command 自动使用 --question（非 --request）
-
 python agentic_recommend.py recommend "给我们的 AI 产品写营销邮件，要迭代打磨"
-# → 推荐 #15 自改进循环，并给出可直接运行的命令
+python agentic_recommend.py list
+```
 
+**真实运行效果**（点咖啡需求）示例：
+```
+$ python agentic_recommend.py recommend "我想做个点咖啡智能体，可以根据我的习惯进行选门店、选品、然后下单送达"
+
+根据「我想做个点咖啡智能体...」的智能推荐：
+
+  [推荐] #03 ReAct
+
+  [理由] 推荐ReAct架构，因为它支持多步推理和工具调用循环……
+
+  [运行] python 03_react.py
+
+  [说明] 各架构 py 里的工具有限，不能直接跑你的点咖啡需求。先跑上面的命令，运行该架构自带的示例，看懂思考→行动→观察循环怎么工作，然后才知道怎么二创、接入门店 API、下单接口等自己的工具与数据。
+```
+
+**重要**：各架构自带的工具有限（如 03 的计算器、列目录），不能直接跑用户的具体需求。**先跑该架构自带示例**（如 `python 03_react.py`），看懂架构后再二创落地。
+
+**运行命令**：
+```bash
 python agentic_recommend.py run 17 --request "布洛芬和赖诺普利能一起吃吗？"
-python agentic_recommend.py run 3 --question "根据习惯选门店、选品并下单送达"
+python agentic_recommend.py run 3
 python agentic_recommend.py run 16 --order A,B --verbose
 ```
 
