@@ -201,6 +201,8 @@ def dry_run_review_node(state: AgentState) -> Dict[str, Any]:
     decision = ""
     # 唯一需要人工输入处：循环直到输入 approve/reject（含大小写变体，见 .lower()）
     while decision.lower() not in ("approve", "reject"):
+        # 输入 approve 或 reject，如果输入的是 approve 或 reject 的变体，比如 APPROVE 或 REJECT，那么会认为输入不合法，需要继续等待用户输入
+        #console.input是读取用户输入，和python 的input一样，但是console.input会显示一个提示符，而input不会显示提示符,用户输入的内容会赋值给decision
         decision = console.input("输入 approve 或 reject：").strip() or ""
     return {"dry_run_log": result["log"], "review_decision": decision.lower()}
 
